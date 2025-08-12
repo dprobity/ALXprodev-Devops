@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Shebang: run with the first bash on PATH. Works in Git Bash.
+
+set -uo pipefail
+# -u: error on undefined vars (catches typos: $OUt vs $OUT)
+# -o pipefail: pipelines fail if any stage fails
+# NOTE: We intentionally do NOT set -e so we can inspect curl's exit codes ourselves.
+
+POKE="pikachu"                  # param you’d eventually make CLI-configurable
+OUT="data.json"                 # output file path
+ERR="errors.txt"                # central error log (ops: single place to tail)
+URL="https://pokeapi.co/api/v2/pokemon/${POKE,,}"
+# ${var,,} => lowercase (Bash expansion). “Pikachu” -> “pikachu”.
+
+: > "$ERR"
+# Truncate previous errors so runs are deterministic.
+
+# curl flags:
+#  -sS : silent progress, but still show errors
+#  -f  : treat HTTP >= 400 as failure (non-zero exit)
+#  -w "%{http_code}" : print status code to stdout AFTER writing body to -o file
+#  -o "$OUT" : where the response body goes
+http_code=$(curl -sS -f "$URL" -w "%{http_code}" -o "$OUT") 2>>"$ERR" || {
+  # If curl fails (network, DNS, HTTP >= 400), it won’t write a valid file
+  echo "[$(date -Is)] Request failed for $POKE" >> "$ERR"
+  exit 1
+}
+
+# Defensive: HTTP must be 200 (though -f should already fail non-2xx)
+if [[ "$http_code" != 200 ]]; then
+  echo "[$(date -Is)] Non-200 ($http_code) for $POKE" >> "$ERR"
+  exit 1
+fi
+
+# Schema sanity-check: does the JSON have a .name key?
+if ! jq -e '.name' < "$OUT" > /dev/null 2>>"$ERR"; then
+  echo "[$(date -Is)] Invalid JSON payload for $POKE" >> "$ERR"
+  exit 1
+fi
