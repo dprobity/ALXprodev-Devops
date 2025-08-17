@@ -1,23 +1,22 @@
-#!/usr/bin/env bash
+#!/bin/bash
+
+
 set -euo pipefail
 
-IN="data.json"
 
-# Capitalize first letter in a portable way (Git Bash safe)
-cap() { awk '{print toupper(substr($0,1,1)) substr($0,2)}'; }
+# Extract data using jq
+data=$(jq -r '
+  .name as $name
+  | (.types[0].type.name) as $type
+  | .weight as $weight
+  | .height as $height
+  | "\($name)|\($type)|\($weight)|\($height)"
+' data.json)
 
-# Read raw fields from JSON
-name=$(jq -r '.name' "$IN" | cap)
-ptype=$(jq -r '.types[0].type.name' "$IN" | cap)
-height_dm=$(jq -r '.height' "$IN")   # decimeters
-weight_hg=$(jq -r '.weight' "$IN")   # hectograms
-
-# Format height to one decimal (0.4)
-height_m=$(awk -v h="$height_dm" 'BEGIN{v=h/10; printf "%.1f", v}')
-
-# Format weight: integer if whole number (6), else one decimal
-weight_kg=$(awk -v w="$weight_hg" 'BEGIN{v=w/10; if (v==int(v)) printf "%d", v; else printf "%.1f", v}')
-
-# Print exactly the expected sentence using awk (to avoid echo)
-awk -v name="$name" -v typ="$ptype" -v h="$height_m" -v w="$weight_kg" \
-'BEGIN { printf "%s is of type %s, weighs %skg, and is %sm tall.\n", name, typ, w, h }'
+# Format data with awk and sed
+echo "$data" | awk -F'|' '{
+  # Capitalize the first letter of the name and type
+  name = toupper(substr($1,1,1)) substr($1,2)
+  type = toupper(substr($2,1,1)) substr($2,2)
+  printf "%s is of type %s, weighs %skg, and is %sm tall.\n", name, type, $3/10, $4/10
+}' | sed 's/\.0\([km]\)/\1/g'
