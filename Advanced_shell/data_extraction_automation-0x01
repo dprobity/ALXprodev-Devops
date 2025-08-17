@@ -1,10 +1,8 @@
 #!/bin/bash
-
-
 set -euo pipefail
 
+# $name is of type $type, weighs ${formatted_weight}kg, and is ${formatted_height}m tall.
 
-# Extract data using jq
 data=$(jq -r '
   .name as $name
   | (.types[0].type.name) as $type
@@ -13,9 +11,7 @@ data=$(jq -r '
   | "\($name)|\($type)|\($weight)|\($height)"
 ' data.json)
 
-# Format data with awk and sed
 echo "$data" | awk -F'|' '{
-  # Capitalize the first letter of the name and type
   name = toupper(substr($1,1,1)) substr($1,2)
   type = toupper(substr($2,1,1)) substr($2,2)
   printf "%s is of type %s, weighs %skg, and is %sm tall.\n", name, type, $3/10, $4/10
