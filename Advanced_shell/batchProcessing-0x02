@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+
+set -eou pipefail
+
+POKEMON=(Bulbasaur Ivysaur Venusaur Charmander Charmeleon)
+OUTDIR="pokemon_data"
+ERR="errors.txt"
+BASE="https://pokeapi.co/api/v2/pokemon"
+
+mkdir -p "$OUTDIR"
+
+: > "$ERR"
+delay_seconds=1
+
+fetch_one() {
+  local p="$1"
+  local p_lc="${p,,}"
+  local url="$BASE/$p_lc"
+  local out="$OUTDIR/${p_lc}.json"
+#!/usr/bin/env bash
+set -euo pipefail
+
+POKEMON=(Bulbasaur Ivysaur Venusaur Charmander Charmeleon)
+OUTDIR="pokemon_data"
+ERR="errors.txt"
+BASE="https://pokeapi.co/api/v2/pokemon"
+
+mkdir -p "$OUTDIR"
+: > "$ERR"                     # reset errors per run
+delay_seconds=1               # polite rate limit
+
+fetch_one() {
+  local p="$1"
+  local p_lc="${p,,}"
+  local url="$BASE/$p_lc"
+  local out="$OUTDIR/${p_lc}.json"
+
+  echo "Fetching data for ${p_lc}..."
+
+  if curl -sS -f "$url" -o "$out"; then
+    # Validate JSON
+    if jq -e '.name' "$out" >/dev/null 2>>"$ERR"; then
+      echo "Saved data to $out ✅"
+    else
+      echo "[$(date -Is)] Invalid JSON for $p" >> "$ERR"
+      rm -f "$out"
+    fi
+  else
+    echo "[$(date -Is)] Failed to fetch $p" >> "$ERR"
+  fi
+}
+
+for p in "${POKEMON[@]}"; do
+  fetch_one "$p"
+  sleep "$delay_seconds"       # b#!/usr/bin/env bash
+set -euo pipefail
+
+POKEMON=(Bulbasaur Ivysaur Venusaur Charmander Charmeleon)
+OUTDIR="pokemon_data"
+ERR="errors.txt"
+BASE="https://pokeapi.co/api/v2/pokemon"
+
+mkdir -p "$OUTDIR"
+: > "$ERR"                     # reset errors per run
+delay_seconds=1               # polite rate limit
+
+fetch_one() {
+  local p="$1"
+  local p_lc="${p,,}"
+  local url="$BASE/$p_lc"
+  local out="$OUTDIR/${p_lc}.json"
+
+  echo "Fetching data for ${p_lc}..."
+
+  if curl -sS -f "$url" -o "$out"; then
+    # Validate JSON
+    if jq -e '.name' "$out" >/dev/null 2>>"$ERR"; then
+      echo "Saved data to $out ✅"
+    else
+      echo "[$(date -Is)] Invalid JSON for $p" >> "$ERR"
+      rm -f "$out"
+    fi
+  else
+    echo "[$(date -Is)] Failed to fetch $p" >> "$ERR"
+  fi
+}
+
+for p in "${POKEMON[@]}"; do
+  fetch_one "$p"
+  sleep "$delay_seconds"       # be nice to public APIs
+done
+e nice to public APIs
+done
+
+  echo "Fetching data for ${p_lc}..."
