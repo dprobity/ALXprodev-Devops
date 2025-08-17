@@ -8,30 +8,52 @@ BASE="https://pokeapi.co/api/v2/pokemon"
 
 mkdir -p "$OUTDIR"
 : > "$ERR"                     # reset errors per run
-delay_seconds=1               # polite rate limit
 
-fetch_one() {
-  local p="$1"
-  local p_lc="${p,,}"
-  local url="$BASE/$p_lc"
-  local out="$OUTDIR/${p_lc}.json"
+max_retries=3
+base_sleep=1               # polite rate limit
 
-  echo "Fetching data for ${p_lc}..."
+fetch_with_retry() {
+  local url="$1" out="$2"
 
-  if curl -sS -f "$url" -o "$out"; then
-    # Validate JSON
-    if jq -e '.name' "$out" >/dev/null 2>>"$ERR"; then
-      echo "Saved data to $out ✅"
-    else
-      echo "[$(date -Is)] Invalid JSON for $p" >> "$ERR"
-      rm -f "$out"
+  for attempt in $(seq 1 "$max_retries"); do
+    # Write to temp file; capture status code
+    http_code=$(curl -sS -w "%{http_code}" -o "$out.tmp" "$url") || http_code="000"
+
+    if [[ "$http_code" == "200" ]]; then
+      if jq -e '.name' "$out.tmp" >/dev/null 2>>"$ERR"; then
+        mv "$out.tmp" "$out"     # atomic publish
+        return 0
+      else
+        echo "[$(date -Is)] Invalid JSON from $url" >> "$ERR"
+        rm -f "$out.tmp"; return 1
+      fi
     fi
-  else
-    echo "[$(date -Is)] Failed to fetch $p" >> "$ERR"
-  fi
+
+    # Transient classes: 429 (rate limit), 5xx (server), 000 (network curl error)
+    if [[ "$http_code" == "429" || "$http_code" == 5* || "$http_code" == "000" ]]; then
+      sleep_time=$(( base_sleep * 2 ** (attempt - 1) ))
+      echo "[$(date -Is)] HTTP $http_code for $url. Retry in ${sleep_time}s (try $attempt/$max_retries)" >> "$ERR"
+      sleep "$sleep_time"; continue
+    fi
+
+    # Other 4xx: permanent (don’t retry)
+    echo "[$(date -Is)] Permanent error HTTP $http_code for $url" >> "$ERR"
+    rm -f "$out.tmp"; return 1
+  done
+
+  echo "[$(date -Is)] Failed after $max_retries attempts: $url" >> "$ERR"
+  rm -f "$out.tmp"; return 1
 }
 
 for p in "${POKEMON[@]}"; do
-  fetch_one "$p"
-  sleep "$delay_seconds"       # be nice to public APIs
+  p_lc="${p,,}"
+  url="$BASE/$p_lc"
+  out="$OUTDIR/${p_lc}.json"
+  echo "Fetching data for ${p_lc}..."
+  if fetch_with_retry "$url" "$out"; then
+    echo "Saved data to $out ✅"
+  else
+    echo "Skipping ${p_lc} due to repeated failures ❌"
+  fi
+  sleep 1
 done
