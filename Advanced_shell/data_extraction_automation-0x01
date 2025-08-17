@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Here -e is fine: every step must succeed.
+
+IN="data.json"
+
+# Git Bash-safe capitalization (avoid sed \u oddities on Windows)
+cap() { awk '{print toupper(substr($0,1,1)) substr($0,2)}'; }
+
+# jq -r => raw strings (no quotes)
+name=$(jq -r '.name' "$IN" | cap)
+# PokeAPI quirk: height in decimeters, weight in hectograms
+height_dm=$(jq -r '.height' "$IN")
+weight_hg=$(jq -r '.weight' "$IN")
+
+# First type only (spec asks singular). If you ever want all types:
+# jq -r '[.types[].type.name] | map(ascii_upcase) | join("/")'
+ptype=$(jq -r '.types[0].type.name' "$IN" | cap)
+
+# awk ‘BEGIN’ to do float math without bc dependency
+height_m=$(awk -v h="$height_dm" 'BEGIN{printf "%.1f", h/10}')
+weight_kg=$(awk -v w="$weight_hg" 'BEGIN{printf "%.1f", w/10}')
+
+echo "${name} is of type ${ptype}, weighs ${weight_kg}kg, and is ${height_m}m tall."
+
